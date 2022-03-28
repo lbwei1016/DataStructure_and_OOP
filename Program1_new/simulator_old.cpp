@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <deque>
 #include <vector>
 #include <cstring>
@@ -23,26 +24,26 @@ int land_sum, takeoff_sum;
 int emerg_num, crash_num, land_num, takeoff_num;
 int fuel_saved;
 
+int TOTAL_PLANES_LANDING, TOTAL_PLANES_TAKEOFF;
+
 // handle incoming planes
 void arrive(deque<Landing>&, deque<Takeoff>&); 
 // determmine which planes can use the runways
-void enter_runway(deque<Landing>[], deque<Takeoff>[], vector<int>&);
+void enter_runway(ofstream&, deque<Landing>[], deque<Takeoff>[], vector<int>&);
 // print planes about to land
-void landing_output(deque<Landing>&);
+void landing_output(ofstream&, deque<Landing>&);
 // print planes about to takeoff
-void takeoff_output(deque<Takeoff>&);
+void takeoff_output(ofstream&, deque<Takeoff>&);
 // print the status of queues and runways
-void output(deque<Landing>[], deque<Takeoff>[], vector<int>&);
+void output(ofstream&, deque<Landing>[], deque<Takeoff>[], vector<int>&);
 // push incoming planes into corresponding queues
 void push_into(deque<Landing>&, deque<Landing>[], deque<Takeoff>&, deque<Takeoff>[]);
 // show statistics
 void statistics();
 
 int main() {
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-
     srand(time(0));
+    ofstream off("output.txt");
     int time_unit = 500; // how much time unit to simulate
     deque<Landing> landing; // incoming planes about to land
     // planes in queue
@@ -54,25 +55,25 @@ int main() {
     for (cur_time=1; cur_time<=time_unit; ++cur_time) {
         vector<int> runways(4, -1);
         // Step 0:
-        cout << "Simulation time: " << cur_time << "\n\n";
-        output(landing_in_que, takeoff_in_que, runways);
+        off << "Simulation time: " << cur_time << "\n\n";
+        output(off, landing_in_que, takeoff_in_que, runways);
 
         // Step 1:
-        cout << "\nStep 1:\nLanding plane(s): ";
+        off << "\nStep 1:\nLanding plane(s):\n";
         arrive(landing, takeoff);
-        landing_output(landing);
-        cout << '\n';
-        output(landing_in_que, takeoff_in_que, runways);
+        landing_output(off, landing);
+        off << '\n';
+        output(off, landing_in_que, takeoff_in_que, runways);
 
         // Step 2:
-        cout << "\nStep 2:\nTakeoff plane(s): ";
-        takeoff_output(takeoff);
-        cout << '\n';
-        output(landing_in_que, takeoff_in_que, runways);
+        off << "\nStep 2:\nTakeoff plane(s):\n";
+        takeoff_output(off, takeoff);
+        off << '\n';
+        output(off, landing_in_que, takeoff_in_que, runways);
 
         push_into(landing, landing_in_que, takeoff, takeoff_in_que);
-        enter_runway(landing_in_que, takeoff_in_que, runways);
-        output(landing_in_que, takeoff_in_que, runways);
+        enter_runway(off, landing_in_que, takeoff_in_que, runways);
+        output(off, landing_in_que, takeoff_in_que, runways);
 
         for (int i=0; i<LANDING; ++i) {
             for (auto &x: landing_in_que[i]) {
@@ -80,9 +81,12 @@ int main() {
             }
         }
 
-        cout << "\n-----------------------------------\n";
+        off << "\n-----------------------------------\n";
     }
+    
     statistics();
+
+    off.close();
     return 0;
 }
 
@@ -97,9 +101,12 @@ void arrive(deque<Landing> &la, deque<Takeoff> &ta) {
     for (int i=0; i<takeoff; ++i, even_cnt+=2) {
         ta.push_back(Takeoff{even_cnt, cur_time});
     }
+
+    TOTAL_PLANES_LANDING += landing;
+    TOTAL_PLANES_TAKEOFF += takeoff;
 }
 
-void enter_runway(deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int> &run) {
+void enter_runway(ofstream &off, deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int> &run) {
     int run_cnt = 0;
     vector<Landing> emerg; // emergency: fuel = 0
 
@@ -115,11 +122,11 @@ void enter_runway(deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int
     }
 
     // Step 3:
-    cout << "\nStep 3:\nEmergency plane(s): ";
+    off << "\nStep 3:\nEmergency plane(s):\n";
     for (auto &x: emerg) {
-        cout << '(' << x.id << ',' << x.fuel << ')' << ", ";
+        off << "\tid: " << x.id << '\n';
     }
-    cout << "\n\n";
+    off << '\n';
 
     // emergency first
     for (auto &x: emerg) {
@@ -129,10 +136,10 @@ void enter_runway(deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int
         land_sum += cur_time - x.time_stamp;
         if (run_cnt == RUNWAY) break;
     }
-    output(la_in_q, ta_in_q, run);
+    output(off, la_in_q, ta_in_q, run);
 
     // Step 4:
-    cout << "\nStep 4:\n\n";
+    off << "\nStep 4:\n\n";
     if (emerg.size() > RUNWAY) 
         crash_num += emerg.size() - RUNWAY; 
 
@@ -175,33 +182,38 @@ void enter_runway(deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int
     }
 }
 
-void landing_output(deque<Landing> &la) {
+void landing_output(ofstream &off, deque<Landing> &la) {
+    char buff[1000];
     for (auto &x: la) {
-        cout << '(' << x.id << ", " << x.fuel << ')' << ", ";
+        sprintf(buff, "\t(%d, %d)\n", x.id, x.fuel);
+        off.write(buff, strlen(buff));
     }
 }
 
-void takeoff_output(deque<Takeoff> &ta) {
+void takeoff_output(ofstream &off, deque<Takeoff> &ta) {
+    char buff[1000];
     for (auto &x: ta) {
-        cout << '(' << x.id  << ')' << ", ";
+        sprintf(buff, "\t%d\n", x.id);
+        off.write(buff, strlen(buff));
     }
 }
 
-void output(deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int> &run) {
+void output(ofstream &off, deque<Landing> la_in_q[], deque<Takeoff> ta_in_q[], vector<int> &run) {
+    char buff[1000];
     for (int i=0; i<RUNWAY; ++i) {
-        cout << "Runway" << i+1 << '(' << run[i] << ")\n";
+        sprintf(buff, "Runway%d(%d)\n", i+1, run[i]);
+        off.write(buff, strlen(buff));
 
         for (int j=0; j<2; ++j) {
-            cout << "Landing queue " << j+1 << ": ";
+            off << "Landing queue " << j+1 << ":\n";
             if (i > 0) {
-                landing_output(la_in_q[2*i-2+j]);
+                landing_output(off, la_in_q[2*i-2+j]);
             }
-            cout << '\n';
         }
         
-        cout << "Takeoff queue: ";
-        takeoff_output(ta_in_q[i]);
-        cout << "\n\n";
+        off << "Takeoff queue:\n";
+        takeoff_output(off, ta_in_q[i]);
+        off << '\n';
     }
 }
 
@@ -241,10 +253,21 @@ void push_into(deque<Landing> &la, deque<Landing> la_in_q[], deque<Takeoff> &ta,
 }
 
 void statistics() {
-    cout << "Time unit simulated: " << --cur_time << '\n';
-    cout << "Average landing waiting time: " << land_sum / (double)land_num << "(s)\n";
-    cout << "Average takeoff waiting time: " << takeoff_sum / (double)takeoff_num << "(s)\n";
-    cout << "Average fuel saved: " << fuel_saved / (double)land_num << "(s)\n";
-    cout << "Total plane(s) in emergency: " << emerg_num << '\n';
-    cout << "Total plane(s) crashed: " << crash_num << '\n';
+    ofstream off("statistics.txt");
+    off << "Time unit simulated: " << --cur_time << '\n';
+    off << "Average landing waiting time: " << land_sum / (double)land_num << "(s)\n";
+    off << "Average takeoff waiting time: " << takeoff_sum / (double)takeoff_num << "(s)\n";
+    off << "Average fuel saved: " << fuel_saved / (double)land_num << "(unit/s)\n";
+    off << "Total plane(s) in emergency: " << emerg_num << '\n';
+    off << "Total plane crashed: " << crash_num << '\n';
+
+    off << "-------------------------\n";
+    off << "land total time: " << land_sum << '\n';
+    off << "takeoff total time: " << takeoff_sum << '\n';
+    off << "landed planes: " << land_num << '\n';
+    off << "tookoff planes: " << takeoff_num << '\n';
+    off << "total arriving planes (land): " << TOTAL_PLANES_LANDING << '\n';
+    off << "total arriving planes (takeoff): " << TOTAL_PLANES_TAKEOFF << '\n';
+    off << "total fuel saved: " << fuel_saved << '\n';
+    off.close();
 }
