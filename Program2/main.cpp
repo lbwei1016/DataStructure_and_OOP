@@ -154,6 +154,7 @@ int main(int argc, const char* argv[]){
         else putchar(' ');
     }
     puts("");
+    if (cnt % 10 != 0) puts("");
 
     // build Huffman tree and encode
     std::vector<std::vector<int> > code(ALPH, std::vector<int>());
